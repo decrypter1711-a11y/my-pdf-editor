@@ -1,0 +1,10 @@
+streamlit
+img2pdf
+pikepdf
+pytesseract
+pdf2image
+pypdf
+reportlab
+streamlit-drawable-canvas
+streamlit-cropper
+Pillow
