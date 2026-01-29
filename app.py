@@ -94,29 +94,25 @@ def cleanup_temp_file(path):
         pass
 
 def clean_ocr_text(text):
-    text = text.replace(' J ', ' ')
-    text = text.replace('J ohn', 'John')
-    text = text.replace('J ava', 'Java')
-    text = re.sub(r'\bJ\s+', '', text)
+    lines = text.split('\n')
+    cleaned_lines = []
     
-    text = text.replace('O', '0')
-    text = text.replace('S67', '567')
-    text = text.replace('89OO', '8900')
-    text = re.sub(r'(\d)O(\d)', r'\g<1>0\g<2>', text)
-    text = re.sub(r'(\d)O\b', r'\g<1>0', text)
+    for line in lines:
+        line = line.replace(' J ', ' J')
+        line = re.sub(r'\bJ\s+([a-z])', r'J\1', line)
+        
+        line = re.sub(r'(\d)\s*O\s*(\d)', r'\g<1>0\g<2>', line)
+        line = re.sub(r'(\d)\s*O\s*O', r'\g<1>00', line)
+        line = re.sub(r'(\d)\s*O\b', r'\g<1>0', line)
+        
+        line = re.sub(r'[¢*•●◆▪◦⚫]', '-', line)
+        
+        line = line.replace('@example.com I Phone', '@example.com | Phone')
+        line = re.sub(r'\s+I\s+Phone', ' | Phone', line)
+        
+        cleaned_lines.append(line)
     
-    text = text.replace('¢', '-')
-    text = text.replace('*', '-')
-    text = re.sub(r'[•●◆▪◦⚫]', '-', text)
-    
-    text = text.replace('@example.com I Phone', '@example.com | Phone')
-    text = text.replace('I Phone', '| Phone')
-    text = re.sub(r'\s+I\s+', ' | ', text)
-    
-    text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
-    
-    return text.strip()
+    return '\n'.join(cleaned_lines)
 
 def fast_text_to_pdf(text_content):
     buffer = io.BytesIO()
@@ -138,7 +134,7 @@ def fast_text_to_pdf(text_content):
     for line in lines:
         line = line.strip()
         if not line:
-            story.append(Spacer(1, 6))
+            story.append(Spacer(1, 12))
             continue
         
         try:
@@ -157,7 +153,7 @@ def enhanced_ocr_extraction(pdf_bytes):
     pages_data = []
     
     for i, img in enumerate(images):
-        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?@#$%^&*()_+-=[]{}|;:\'\"<>/\~` '
+        custom_config = r'--oem 1 --psm 6'
         text = pytesseract.image_to_string(img, config=custom_config, lang='eng')
         
         cleaned_text = clean_ocr_text(text)
@@ -189,7 +185,7 @@ class SecureProcessor:
         images = convert_from_bytes(pdf_bytes, dpi=300)
         full_text = ""
         for i, img in enumerate(images):
-            custom_config = r'--oem 3 --psm 6'
+            custom_config = r'--oem 1 --psm 6'
             text = pytesseract.image_to_string(img, config=custom_config, lang='eng')
             cleaned_text = clean_ocr_text(text)
             full_text += cleaned_text + "\n\n"
@@ -430,7 +426,7 @@ def main():
                         edited_text = st.text_area(
                             f"Edit Page {page_data['page_num']}", 
                             page_data['text'], 
-                            height=300,
+                            height=400,
                             key=f"page_{page_data['page_num']}",
                             label_visibility="collapsed"
                         )
