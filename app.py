@@ -19,7 +19,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_LEFT
-import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="PDF Studio Pro | Free Online PDF Editor",
@@ -27,16 +26,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-components.html(
-    """
-    <script>
-    var meta = document.createElement('meta');
-    meta.name = "google-site-verification";
-    meta.content = "txzXqQ11QyJtIc9Rgaw6E1Dbvz_ez9qO74Qp1CfI4K4";
-    document.getElementsByTagName('head')[0].appendChild(meta);
-    </script>
-    """,
-    height=0,
+st.markdown(
+    f'<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">'
+    f'<script>'
+    f'var meta = document.createElement("meta");'
+    f'meta.name = "google-site-verification";'
+    f'meta.content = "txzXqQ11QyJtIc9Rgaw6E1Dbvz_ez9qO74Qp1CfI4K4";'
+    f'parent.document.getElementsByTagName("head")[0].appendChild(meta);'
+    f'</script>',
+    unsafe_allow_html=True
 )
 
 st.markdown("""
