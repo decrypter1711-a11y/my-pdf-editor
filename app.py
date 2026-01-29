@@ -5,7 +5,6 @@ import pytesseract
 import io
 import os
 import tempfile
-import base64
 from PIL import Image, ImageDraw, ImageFont
 from pdf2image import convert_from_bytes
 from pypdf import PdfReader, PdfWriter
@@ -16,8 +15,6 @@ from streamlit_drawable_canvas import st_canvas
 from streamlit_cropper import st_cropper
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_LEFT
 
 st.set_page_config(
@@ -33,8 +30,6 @@ st.markdown("""
     .privacy-msg { background-color: #28a745; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 5px; margin-bottom: 20px; }
     h1, h2 { color: #1e293b; }
 </style>
-<meta name="description" content="Free online PDF editor. Convert images to PDF, OCR scanned documents, sign PDFs, merge, crop, and repair corrupted files.">
-<meta name="keywords" content="PDF Editor, Online PDF, OCR PDF, Sign PDF Online, Merge PDF, Repair PDF, Free PDF Tool">
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="privacy-msg">PRIVACY SECURED: Processing happens in RAM. No data is stored on our servers.</div>', unsafe_allow_html=True)
@@ -64,7 +59,8 @@ def fast_text_to_pdf(text_content):
         wordWrap='LTR'
     )
     story = []
-    text_content = text_content.replace('*', '&bull;').replace('\u2022', '&bull;')
+    text_content = text_content.replace('*', '&bull;')
+    text_content = text_content.replace('\u2022', '&bull;')
     lines = text_content.split('\n')
     for line in lines:
         if line.strip():
@@ -83,12 +79,16 @@ class SecureProcessor:
     def merge_pdfs(self, file_list):
         merger = PdfWriter()
         for pdf in file_list:
+            pdf.seek(0)
             merger.append(pdf)
         merger.write(self.memory_buffer)
         return bytes(self.memory_buffer.getvalue())
 
     def images_to_pdf(self, image_list):
-        img_bytes = [i.read() for i in image_list]
+        img_bytes = []
+        for i in image_list:
+            i.seek(0)
+            img_bytes.append(i.read())
         return bytes(img2pdf.convert(img_bytes))
 
     def extract_text(self, pdf_bytes):
@@ -100,6 +100,7 @@ class SecureProcessor:
         return full_text
 
     def repair_pdf(self, file_obj):
+        file_obj.seek(0)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(file_obj.read())
             tmp_path = tmp.name
@@ -148,7 +149,7 @@ def main():
                                 if bbox: overlay_img = overlay_img.crop(bbox)
                         else:
                             u = st.file_uploader("Upload PNG", type=['png'])
-                            if u: overlay_img = Image.open(u)
+                            if u: overlay_img = Image.open(u).convert("RGBA")
                     elif edit_mode == "Add Text":
                         txt = st.text_input("Content", "Enter Text")
                         t_sz = st.slider("Size", 10, 150, 24)
@@ -177,7 +178,8 @@ def main():
                 with c2:
                     st.subheader("Live Preview")
                     prev = current_img.convert("RGBA")
-                    if overlay_img: prev.paste(overlay_img, (x, y), overlay_img)
+                    if overlay_img:
+                        prev.paste(overlay_img, (x, y), overlay_img)
                     st.image(prev, use_container_width=True)
                     if st.button("Apply Changes"):
                         if overlay_img:
@@ -206,7 +208,6 @@ def main():
                             out = io.BytesIO(); writer.write(out)
                             st.session_state.edited_pdf_bytes = bytes(out.getvalue())
                             st.success("Changes Applied! Click Download below.")
-
                     if st.session_state.edited_pdf_bytes:
                         st.download_button("Download Edited PDF", st.session_state.edited_pdf_bytes, "final.pdf", "application/pdf")
             finally:
@@ -216,8 +217,11 @@ def main():
         st.header("Image to PDF Converter")
         files = st.file_uploader("Upload images", accept_multiple_files=True, type=['jpg','png','jpeg'])
         if files and st.button("Convert"):
-            res = processor.images_to_pdf(files)
-            st.download_button("Download PDF", res, "images.pdf")
+            try:
+                res = processor.images_to_pdf(files)
+                st.download_button("Download PDF", res, "images.pdf")
+            except Exception as e:
+                st.error(f"Error converting images: {e}")
 
     elif choice == "OCR Extract Text":
         st.header("OCR Engine")
@@ -239,8 +243,11 @@ def main():
         st.header("Merge PDFs")
         files = st.file_uploader("Select PDFs", accept_multiple_files=True, type=['pdf'])
         if files and st.button("Merge"):
-            res = processor.merge_pdfs(files)
-            st.download_button("Download Merged PDF", res, "merged.pdf")
+            try:
+                res = processor.merge_pdfs(files)
+                st.download_button("Download Merged PDF", res, "merged.pdf")
+            except Exception as e:
+                st.error(f"Merge error: {e}")
 
     elif choice == "Split and Crop":
         st.header("PDF Cropper")
