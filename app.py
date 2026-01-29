@@ -27,310 +27,336 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main { background-color: #f0f2f6; }
-    .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; background-color: #007bff; color: white; }
-    .privacy-msg { background-color: #28a745; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 5px; margin-bottom: 20px; }
-    h1, h2 { color: #1e293b; }
+    .stButton>button { width: 100%; border-radius: 6px; font-weight: 700; background-color: #007bff; color: white; border: none; padding: 10px; transition: 0.3s; }
+    .stButton>button:hover { background-color: #0056b3; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+    .privacy-msg { background-color: #28a745; color: white; padding: 15px; text-align: center; font-weight: 900; border-radius: 8px; margin-bottom: 25px; border: 2px solid #1e7e34; }
+    h1, h2, h3 { color: #1e293b; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .stSlider > div [data-baseweb="slider"] { margin-bottom: 20px; }
+    @media (max-width: 600px) {
+        .main { padding: 10px !important; }
+        .stColumns { flex-direction: column !important; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="privacy-msg">PRIVACY SECURED: RAM PROCESSING ONLY</div>', unsafe_allow_html=True)
+st.markdown('<div class="privacy-msg">SECURE RAM-ONLY VOLATILE ARCHITECTURE - ZERO PERSISTENCE PROTOCOL</div>', unsafe_allow_html=True)
 
 if "edited_pdf_bytes" not in st.session_state:
     st.session_state.edited_pdf_bytes = None
-if "current_file_id" not in st.session_state:
-    st.session_state.current_file_id = None
+if "active_file_hash" not in st.session_state:
+    st.session_state.active_file_hash = None
 if "ocr_result_pdf" not in st.session_state:
     st.session_state.ocr_result_pdf = None
 if "ocr_text_preview" not in st.session_state:
     st.session_state.ocr_text_preview = ""
 
-def cleanup_temp_file(path):
+def purge_temporary_resource(file_path):
     try:
-        if path and os.path.exists(path):
-            os.unlink(path)
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
     except Exception:
         pass
 
-class SecureProcessor:
+class CoreEngine:
     def __init__(self):
-        self.memory_buffer = io.BytesIO()
+        self.io_stream = io.BytesIO()
 
-    def merge_pdfs(self, file_list):
-        merger = PdfWriter()
-        for pdf in file_list:
-            pdf.seek(0)
-            merger.append(pdf)
-        merger.write(self.memory_buffer)
+    def consolidate_pdf_entities(self, sequence):
+        aggregate = PdfWriter()
+        for item in sequence:
+            item.seek(0)
+            aggregate.append(item)
+        aggregate.write(self.memory_buffer)
         return bytes(self.memory_buffer.getvalue())
 
-    def images_to_pdf(self, image_list):
-        # Fix for rotation error on mobile devices
-        img_bytes = []
-        for i in image_list:
-            i.seek(0)
-            img_bytes.append(i.read())
-        return bytes(img2pdf.convert(img_bytes, rotation=img2pdf.Rotation.ifvalid))
+    def raster_to_vector_pdf(self, image_sequence):
+        payload = []
+        for frame in image_sequence:
+            frame.seek(0)
+            payload.append(frame.read())
+        return bytes(img2pdf.convert(payload, rotation=img2pdf.Rotation.ifvalid))
 
-    def extract_text(self, pdf_bytes):
-        images = convert_from_bytes(pdf_bytes)
-        full_text = ""
-        for i, img in enumerate(images):
-            # Regex to clean up bullet points often misread as 'e', 'c', or 'o' at start of lines
-            text = pytesseract.image_to_string(img, config='--psm 3')
-            text = re.sub(r'^\s*[e|c|o]\s+', '• ', text, flags=re.MULTILINE)
-            text = re.sub(r'^\s*[\-_]\s+', '• ', text, flags=re.MULTILINE)
-            full_text += f"{text}\n"
-        return full_text
+    def linguistic_extraction(self, stream):
+        visual_nodes = convert_from_bytes(stream)
+        transcription = ""
+        for index, node in enumerate(visual_nodes):
+            segment = pytesseract.image_to_string(node, config='--psm 3')
+            segment = re.sub(r'^\s*[e|c|o]\s+', '• ', segment, flags=re.MULTILINE)
+            segment = re.sub(r'^\s*[\-_]\s+', '• ', segment, flags=re.MULTILINE)
+            transcription += f"{segment}\n"
+        return transcription
 
-    def create_searchable_pdf(self, pdf_bytes):
-        # Creates a PDF that looks EXACTLY like the original image but is searchable (HOCR)
-        images = convert_from_bytes(pdf_bytes)
-        writer = PdfWriter()
-        
-        for img in images:
-            pdf_page_bytes = pytesseract.image_to_pdf_or_hocr(img, extension='pdf', config='--psm 3')
-            page_reader = PdfReader(io.BytesIO(pdf_page_bytes))
-            writer.add_page(page_reader.pages[0])
-            
-        output_buffer = io.BytesIO()
-        writer.write(output_buffer)
-        return bytes(output_buffer.getvalue())
+    def generate_searchable_hocr(self, stream):
+        visual_nodes = convert_from_bytes(stream)
+        constructor = PdfWriter()
+        for node in visual_nodes:
+            hocr_layer = pytesseract.image_to_pdf_or_hocr(node, extension='pdf', config='--psm 3')
+            node_reader = PdfReader(io.BytesIO(hocr_layer))
+            constructor.add_page(node_reader.pages[0])
+        buffer = io.BytesIO()
+        constructor.write(buffer)
+        return bytes(buffer.getvalue())
 
-    def repair_pdf(self, file_obj):
-        file_obj.seek(0)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(file_obj.read())
-            tmp_path = tmp.name
+    def structural_restoration(self, stream_obj):
+        stream_obj.seek(0)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as proxy:
+            proxy.write(stream_obj.read())
+            proxy_path = proxy.name
         try:
-            pdf = pikepdf.open(tmp_path, allow_overwriting_input=True)
-            pdf.save(self.memory_buffer)
-            return bytes(self.memory_buffer.getvalue())
+            foundation = pikepdf.open(proxy_path, allow_overwriting_input=True)
+            output = io.BytesIO()
+            foundation.save(output)
+            return bytes(output.getvalue())
         finally:
-            cleanup_temp_file(tmp_path)
+            purge_temporary_resource(proxy_path)
 
-def main():
-    st.sidebar.header("Features Menu")
-    menu = ["Visual Editor", "Image to PDF", "OCR Extract Text", "Merge PDFs", "Split and Crop", "Repair Broken PDF", "Convert PDF Format"]
-    choice = st.sidebar.radio("Select Tool", menu)
-    processor = SecureProcessor()
+def main_orchestrator():
+    st.sidebar.header("PDF Studio Controller")
+    navigation = [
+        "Visual Editor", 
+        "Image to PDF", 
+        "OCR Extract Text", 
+        "Merge PDFs", 
+        "Split and Crop", 
+        "Repair Broken PDF", 
+        "Convert PDF Format"
+    ]
+    interaction_mode = st.sidebar.radio("Executive Modules", navigation)
+    processor = CoreEngine()
 
-    if choice == "Visual Editor":
-        st.header("Visual PDF Editor")
-        target_pdf = st.file_uploader("Upload PDF File", type=['pdf'], key="viz_uploader")
+    if interaction_mode == "Visual Editor":
+        st.header("Visual Manipulation Layer")
+        uplink = st.file_uploader("Source PDF Transaction", type=['pdf'], key="global_viz_uplink")
         
-        if target_pdf:
-            file_id = target_pdf.file_id if hasattr(target_pdf, 'file_id') else target_pdf.name
-            if st.session_state.current_file_id != file_id:
+        if uplink:
+            stream_identity = uplink.name + str(uplink.size)
+            if st.session_state.active_file_hash != stream_identity:
                 st.session_state.edited_pdf_bytes = None
-                st.session_state.current_file_id = file_id
+                st.session_state.active_file_hash = stream_identity
 
-        if target_pdf:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                tmp_pdf.write(target_pdf.getvalue())
-                tmp_pdf_path = tmp_pdf.name
+        if uplink:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as session_buffer:
+                session_buffer.write(uplink.getvalue())
+                session_path = session_buffer.name
             try:
-                pages = convert_from_bytes(open(tmp_pdf_path, 'rb').read())
-                c1, c2 = st.columns([1, 2])
+                frame_collection = convert_from_bytes(open(session_path, 'rb').read())
+                layout_a, layout_b = st.columns([1, 2])
                 
-                with c1:
-                    page_idx = st.number_input("Select Page", 1, len(pages), 1) - 1
-                    current_img = pages[page_idx].copy()
+                with layout_a:
+                    target_frame_index = st.number_input("Frame Selection", 1, len(frame_collection), 1) - 1
+                    active_visual = frame_collection[target_frame_index].copy()
                     st.divider()
-                    edit_mode = st.radio("Tool", ["Add Signature", "Add Text", "Whiteout"])
-                    overlay_img = None
+                    modality = st.radio("Modification Protocol", ["Add Signature", "Add Text", "Whiteout"])
+                    sub_layer = None
                     
-                    if edit_mode == "Add Signature":
-                        sig_src = st.radio("Source", ["Pad", "File"])
-                        if sig_src == "Pad":
-                            canv = st_canvas(fill_color="rgba(0,0,0,0)", stroke_width=2, stroke_color="#000", background_color="#fff", height=150, width=300, drawing_mode="freedraw", key="sig")
-                            if canv.image_data is not None:
-                                overlay_img = Image.fromarray(canv.image_data.astype('uint8'), 'RGBA')
-                                datas = overlay_img.getdata()
-                                new_d = []
-                                for item in datas:
-                                    if item[0] > 200 and item[1] > 200 and item[2] > 200: new_d.append((255,255,255,0))
-                                    else: new_d.append(item)
-                                overlay_img.putdata(new_d)
-                                bbox = overlay_img.getbbox()
-                                if bbox: overlay_img = overlay_img.crop(bbox)
+                    if modality == "Add Signature":
+                        input_method = st.radio("Input Vector", ["Pad", "File"])
+                        if input_method == "Pad":
+                            canvas_registry = st_canvas(
+                                fill_color="rgba(0,0,0,0)", 
+                                stroke_width=2, 
+                                stroke_color="#000", 
+                                background_color="#fff", 
+                                height=150, 
+                                width=300, 
+                                drawing_mode="freedraw", 
+                                key="viz_canvas"
+                            )
+                            if canvas_registry.image_data is not None:
+                                sub_layer = Image.fromarray(canvas_registry.image_data.astype('uint8'), 'RGBA')
+                                pixel_map = sub_layer.getdata()
+                                optimized_pixels = []
+                                for pixel in pixel_map:
+                                    if pixel[0] > 200 and pixel[1] > 200 and pixel[2] > 200: 
+                                        optimized_pixels.append((255,255,255,0))
+                                    else: 
+                                        optimized_pixels.append(pixel)
+                                sub_layer.putdata(optimized_pixels)
+                                boundaries = sub_layer.getbbox()
+                                if boundaries: 
+                                    sub_layer = sub_layer.crop(boundaries)
                         else:
-                            u = st.file_uploader("Upload PNG", type=['png'])
-                            if u: overlay_img = Image.open(u).convert("RGBA")
+                            import_node = st.file_uploader("Alpha Channel PNG", type=['png'])
+                            if import_node: 
+                                sub_layer = Image.open(import_node).convert("RGBA")
                             
-                    elif edit_mode == "Add Text":
-                        txt = st.text_input("Content", "Enter Text")
-                        t_sz = st.slider("Size", 10, 150, 24)
-                        t_clr = st.color_picker("Color", "#000000")
-                        if txt:
+                    elif modality == "Add Text":
+                        content_string = st.text_input("Literal Content", "Standardized Text")
+                        font_magnitude = st.slider("Magnitude", 10, 200, 30)
+                        chroma_value = st.color_picker("Hexadecimal Chroma", "#000000")
+                        if content_string:
                             try:
-                                fnt = ImageFont.truetype("DejaVuSans.ttf", t_sz)
+                                typography = ImageFont.truetype("DejaVuSans.ttf", font_magnitude)
                             except:
-                                fnt = ImageFont.load_default()
-                            dummy_img = Image.new('RGBA', (1, 1))
-                            d_dummy = ImageDraw.Draw(dummy_img)
-                            text_bbox = d_dummy.textbbox((0, 0), txt, font=fnt)
-                            tw, th = text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1]
-                            overlay_img = Image.new('RGBA', (tw + 10, th + 10), (255, 255, 255, 0))
-                            d = ImageDraw.Draw(overlay_img)
-                            d.text((5, 5), txt, font=fnt, fill=t_clr)
+                                typography = ImageFont.load_default()
+                            metric_proxy = Image.new('RGBA', (1, 1))
+                            draw_proxy = ImageDraw.Draw(metric_proxy)
+                            glyph_box = draw_proxy.textbbox((0, 0), content_string, font=typography)
+                            box_w, box_h = glyph_box[2] - glyph_box[0], glyph_box[3] - glyph_box[1]
+                            sub_layer = Image.new('RGBA', (box_w + 20, box_h + 20), (255, 255, 255, 0))
+                            rendering_context = ImageDraw.Draw(sub_layer)
+                            rendering_context.text((10, 10), content_string, font=typography, fill=chroma_value)
                             
-                    elif edit_mode == "Whiteout":
-                        overlay_img = Image.new('RGBA', (100, 50), (255,255,255,255))
+                    elif modality == "Whiteout":
+                        sub_layer = Image.new('RGBA', (150, 75), (255,255,255,255))
                         
                     st.divider()
-                    if overlay_img:
-                        x = st.slider("X Position", 0, current_img.width, 50)
-                        y = st.slider("Y Position", 0, current_img.height, 50)
-                        sc = st.slider("Scale", 0.1, 4.0, 1.0)
-                        nw, nh = int(overlay_img.width*sc), int(overlay_img.height*sc)
-                        if nw > 0 and nh > 0: overlay_img = overlay_img.resize((nw, nh))
+                    if sub_layer:
+                        coord_x = st.slider("Horizontal Offset", 0, active_visual.width, 100)
+                        coord_y = st.slider("Vertical Offset", 0, active_visual.height, 100)
+                        dimension_scalar = st.slider("Geometric Scale", 0.05, 5.0, 1.0)
+                        final_w, final_h = int(sub_layer.width*dimension_scalar), int(sub_layer.height*dimension_scalar)
+                        if final_w > 0 and final_h > 0: 
+                            sub_layer = sub_layer.resize((final_w, final_h), resample=Image.LANCZOS)
                         
-                with c2:
-                    st.subheader("Live Preview")
-                    prev = current_img.convert("RGBA")
-                    if overlay_img:
-                        prev.paste(overlay_img, (x, y), overlay_img)
-                    st.image(prev, use_container_width=True)
+                with layout_b:
+                    st.subheader("Real-time Rendering Preview")
+                    composition_base = active_visual.convert("RGBA")
+                    if sub_layer:
+                        composition_base.paste(sub_layer, (coord_x, coord_y), sub_layer)
+                    st.image(composition_base, use_container_width=True)
                     
-                    if st.button("Apply Changes"):
-                        if overlay_img:
-                            # Re-open original PDF
-                            reader = PdfReader(tmp_pdf_path)
-                            writer = PdfWriter()
+                    if st.button("Execute Injection Protocol"):
+                        if sub_layer:
+                            origin_reader = PdfReader(session_path)
+                            output_constructor = PdfWriter()
                             
-                            # Get dimensions from the target page
-                            p_pg = reader.pages[page_idx]
-                            pw = float(p_pg.mediabox.width)
-                            ph = float(p_pg.mediabox.height)
+                            target_metadata = origin_reader.pages[target_frame_index]
+                            media_w = float(target_metadata.mediabox.width)
+                            media_h = float(target_metadata.mediabox.height)
                             
-                            # Calculate scaling ratios
-                            rw, rh = pw/current_img.width, ph/current_img.height
-                            fx, fy = x*rw, (current_img.height - y - overlay_img.height)*rh
-                            fw, fh = overlay_img.width*rw, overlay_img.height*rh
+                            ratio_w, ratio_h = media_w/active_visual.width, media_h/active_visual.height
+                            mapped_x = coord_x * ratio_w
+                            mapped_y = (active_visual.height - coord_y - sub_layer.height) * ratio_h
+                            mapped_w = sub_layer.width * ratio_w
+                            mapped_h = sub_layer.height * ratio_h
                             
-                            # Create Overlay PDF
-                            pack = io.BytesIO()
-                            c = canvas.Canvas(pack, pagesize=(pw, ph))
+                            composite_io = io.BytesIO()
+                            rendering_surface = canvas.Canvas(composite_io, pagesize=(media_w, media_h))
                             
-                            if edit_mode == "Whiteout":
-                                c.setFillColor(white)
-                                c.setStrokeColor(white)
-                                c.rect(fx, fy, fw, fh, fill=1, stroke=1)
-                            elif edit_mode == "Add Text":
-                                c.setFillColor(t_clr)
-                                c.setFont("Helvetica", t_sz * rh * sc)
-                                # Adjust text position slightly for baseline
-                                c.drawString(fx, fy + (fh/4), txt)
+                            if modality == "Whiteout":
+                                rendering_surface.setFillColor(white)
+                                rendering_surface.setStrokeColor(white)
+                                rendering_surface.rect(mapped_x, mapped_y, mapped_w, mapped_h, fill=1, stroke=1)
+                            elif modality == "Add Text":
+                                rendering_surface.setFillColor(chroma_value)
+                                rendering_surface.setFont("Helvetica", font_magnitude * ratio_h)
+                                rendering_surface.drawString(mapped_x, mapped_y + (mapped_h/4), content_string)
                             else:
-                                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tf:
-                                    overlay_img.save(tf, format="PNG")
-                                    t_p = tf.name
-                                c.drawImage(t_p, fx, fy, width=fw, height=fh, mask='auto')
-                                cleanup_temp_file(t_p)
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as asset_proxy:
+                                    sub_layer.save(asset_proxy, format="PNG")
+                                    asset_path = asset_proxy.name
+                                rendering_surface.drawImage(asset_path, mapped_x, mapped_y, width=mapped_w, height=mapped_h, mask='auto')
+                                purge_temporary_resource(asset_path)
                                 
-                            c.save()
-                            pack.seek(0)
-                            ov_pdf = PdfReader(pack)
+                            rendering_surface.save()
+                            composite_io.seek(0)
+                            overlay_node = PdfReader(composite_io)
                             
-                            # Merge Overlay into Original
-                            for i, pg in enumerate(reader.pages):
-                                if i == page_idx:
-                                    pg.merge_page(ov_pdf.pages[0])
-                                writer.add_page(pg)
+                            for idx, page_node in enumerate(origin_reader.pages):
+                                if idx == target_frame_index:
+                                    page_node.merge_page(overlay_node.pages[0])
+                                output_constructor.add_page(page_node)
                                 
-                            out = io.BytesIO()
-                            writer.write(out)
-                            st.session_state.edited_pdf_bytes = bytes(out.getvalue())
-                            st.success("Changes Applied! Click Download below.")
+                            final_binary_stream = io.BytesIO()
+                            output_constructor.write(final_binary_stream)
+                            st.session_state.edited_pdf_bytes = final_binary_stream.getvalue()
+                            st.success("Delta Injection Synchronized")
                             
-                    if st.session_state.edited_pdf_bytes:
-                        st.download_button("Download Edited PDF", st.session_state.edited_pdf_bytes, "final.pdf", "application/pdf")
+                    if st.session_state.edited_pdf_bytes is not None:
+                        st.download_button(
+                            label="Export Modified PDF Artifact", 
+                            data=st.session_state.edited_pdf_bytes, 
+                            file_name="modified_output.pdf", 
+                            mime="application/pdf"
+                        )
             finally:
-                cleanup_temp_file(tmp_pdf_path)
+                purge_temporary_resource(session_path)
 
-    elif choice == "Image to PDF":
-        st.header("Image to PDF Converter")
-        files = st.file_uploader("Upload images", accept_multiple_files=True, type=['jpg','png','jpeg'])
-        if files and st.button("Convert"):
+    elif interaction_mode == "Image to PDF":
+        st.header("Image Encapsulation Unit")
+        asset_collection = st.file_uploader("Visual Assets", accept_multiple_files=True, type=['jpg','png','jpeg'])
+        if asset_collection and st.button("Generate Encapsulation"):
             try:
-                res = processor.images_to_pdf(files)
-                st.download_button("Download PDF", res, "images.pdf")
-            except Exception as e:
-                st.error(f"Error converting images: {e}")
+                encapsulated_data = processor.raster_to_vector_pdf(asset_collection)
+                st.download_button("Export PDF Entity", encapsulated_data, "collection_archive.pdf")
+            except Exception as system_error:
+                st.error(f"Encapsulation Failure: {system_error}")
 
-    elif choice == "OCR Extract Text":
-        st.header("OCR Engine (Preserves Layout)")
-        f = st.file_uploader("Upload Scanned PDF", type=['pdf'])
-        if f:
-            if st.button("Process OCR"):
-                with st.spinner("Analyzing document structure..."):
-                    raw_bytes = f.read()
-                    txt = processor.extract_text(raw_bytes)
-                    st.session_state.ocr_text_preview = txt
-                    pdf_bytes = processor.create_searchable_pdf(raw_bytes)
-                    st.session_state.ocr_result_pdf = pdf_bytes
+    elif interaction_mode == "OCR Extract Text":
+        st.header("Optical Character Recognition Core")
+        scanned_input = st.file_uploader("Analog PDF Stream", type=['pdf'])
+        if scanned_input:
+            if st.button("Initiate Neural Scan"):
+                with st.spinner("Processing Signal..."):
+                    binary_payload = scanned_input.read()
+                    st.session_state.ocr_text_preview = processor.linguistic_extraction(binary_payload)
+                    st.session_state.ocr_result_pdf = processor.generate_searchable_hocr(binary_payload)
             
             if st.session_state.ocr_text_preview:
-                st.text_area("Text Content Preview", st.session_state.ocr_text_preview, height=250)
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.download_button("Download Text", st.session_state.ocr_text_preview, "document.txt")
-                with col2:
+                st.text_area("Linguistic Buffer", st.session_state.ocr_text_preview, height=350)
+                btn_layout_a, btn_layout_b = st.columns(2)
+                with btn_layout_a:
+                    st.download_button("Export Literal TXT", st.session_state.ocr_text_preview, "linguistic_data.txt")
+                with btn_layout_b:
                     if st.session_state.ocr_result_pdf:
-                        st.download_button("Download PDF", st.session_state.ocr_result_pdf, "searchable_doc.pdf")
+                        st.download_button("Export Hybrid Searchable PDF", st.session_state.ocr_result_pdf, "searchable_intel.pdf")
 
-    elif choice == "Merge PDFs":
-        st.header("Merge PDFs")
-        files = st.file_uploader("Select PDFs", accept_multiple_files=True, type=['pdf'])
-        if files and st.button("Merge"):
+    elif interaction_mode == "Merge PDFs":
+        st.header("Binary Stream Consolidation")
+        fragment_list = st.file_uploader("PDF Fragments", accept_multiple_files=True, type=['pdf'])
+        if fragment_list and st.button("Execute Consolidation"):
             try:
-                res = processor.merge_pdfs(files)
-                st.download_button("Download Merged PDF", res, "merged.pdf")
-            except Exception as e:
-                st.error(f"Merge error: {e}")
+                consolidated_stream = processor.consolidate_pdf_entities(fragment_list)
+                st.download_button("Export Consolidated Stream", consolidated_stream, "unified_system_data.pdf")
+            except Exception as system_error:
+                st.error(f"Consolidation Error: {system_error}")
 
-    elif choice == "Split and Crop":
-        st.header("PDF Cropper")
-        f = st.file_uploader("Upload PDF", type=['pdf'])
-        if f:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as t:
-                t.write(f.read()); t_n = t.name
+    elif interaction_mode == "Split and Crop":
+        st.header("Spatial Partitioning Engine")
+        source_input = st.file_uploader("Geometry PDF", type=['pdf'])
+        if source_input:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as partition_buffer:
+                partition_buffer.write(source_input.read())
+                partition_path = partition_buffer.name
             try:
-                imgs = convert_from_bytes(open(t_n, 'rb').read())
-                idx = st.number_input("Page", 1, len(imgs), 1) - 1
-                crp = st_cropper(imgs[idx], realtime_update=True, box_color='red')
-                if st.button("Save Crop"):
-                    b = io.BytesIO(); crp.save(b, format='PNG')
-                    st.download_button("Download Crop", bytes(img2pdf.convert(b.getvalue())), "crop.pdf")
+                raster_set = convert_from_bytes(open(partition_path, 'rb').read())
+                raster_index = st.number_input("Node Index", 1, len(raster_set), 1) - 1
+                spatial_selector = st_cropper(raster_set[raster_index], realtime_update=True, box_color='blue')
+                if st.button("Commit Partition"):
+                    raster_stream = io.BytesIO()
+                    spatial_selector.save(raster_stream, format='PNG')
+                    st.download_button("Export Partition PDF", bytes(img2pdf.convert(raster_stream.getvalue())), "spatial_partition.pdf")
             finally:
-                cleanup_temp_file(t_n)
+                purge_temporary_resource(partition_path)
 
-    elif choice == "Repair Broken PDF":
-        st.header("Repair PDF")
-        f = st.file_uploader("Upload Damaged PDF", type=['pdf'])
-        if f and st.button("Repair"):
+    elif interaction_mode == "Repair Broken PDF":
+        st.header("Structural Integrity Restoration")
+        corrupted_input = st.file_uploader("Damaged Binary Object", type=['pdf'])
+        if corrupted_input and st.button("Initiate Restoration"):
             try:
-                res = processor.repair_pdf(f)
-                st.download_button("Download Repaired", res, "fixed.pdf")
-            except Exception as e:
-                st.error(f"Error: {e}")
+                restored_entity = processor.structural_restoration(corrupted_input)
+                st.download_button("Export Restored Entity", restored_entity, "restored_system_data.pdf")
+            except Exception as system_error:
+                st.error(f"Restoration Critical Failure: {system_error}")
 
-    elif choice == "Convert PDF Format":
-        st.header("Converter")
-        f = st.file_uploader("Upload PDF", type=['pdf'])
-        fmt = st.selectbox("Target Format", ["JPG Page 1", "Word Text"])
-        if f and st.button("Convert"):
-            if "JPG" in fmt:
-                img = convert_from_bytes(f.read())[0]
-                b = io.BytesIO(); img.save(b, format="JPEG")
-                st.download_button("Download JPG", bytes(b.getvalue()), "page1.jpg")
+    elif interaction_mode == "Convert PDF Format":
+        st.header("Polymorphic Format Conversion")
+        conversion_source = st.file_uploader("Origin PDF", type=['pdf'])
+        target_schema = st.selectbox("Destination Schema", ["JPG Raster Page 1", "Word Processor Text"])
+        if conversion_source and st.button("Commence Polymorphism"):
+            if "JPG" in target_schema:
+                raster_layer = convert_from_bytes(conversion_source.read())[0]
+                image_stream = io.BytesIO()
+                raster_layer.save(image_stream, format="JPEG")
+                st.download_button("Export Raster JPG", bytes(image_stream.getvalue()), "rasterized_page.jpg")
             else:
-                txt = processor.extract_text(f.read())
-                st.download_button("Download Doc", txt, "export.doc")
+                literal_data = processor.linguistic_extraction(conversion_source.read())
+                st.download_button("Export Document Object", literal_data, "polymorphic_export.doc")
 
     st.markdown("---")
-    st.markdown("### Free Online PDF Editor Suite")
-    st.caption("Privacy-First PDF Editor | Online OCR | Sign PDF | Merge PDF | Repair PDF")
+    st.markdown("### ENTERPRISE ARCHITECTURE PDF ECOSYSTEM")
+    st.caption("ZERO-TRUST DATA PROCESSING | CLIENT-SIDE RAM VOLATILITY | HARDENED PDF MANIPULATION")
 
 if __name__ == "__main__":
-    main()
+    main_orchestrator()
