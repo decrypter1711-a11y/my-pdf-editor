@@ -36,8 +36,10 @@ st.markdown('<div class="privacy-msg">PRIVACY SECURED: Processing happens in RAM
 
 if "edited_pdf_bytes" not in st.session_state:
     st.session_state.edited_pdf_bytes = None
-if "ocr_buffer" not in st.session_state:
-    st.session_state.ocr_buffer = ""
+if "ocr_result_pdf" not in st.session_state:
+    st.session_state.ocr_result_pdf = None
+if "ocr_text_preview" not in st.session_state:
+    st.session_state.ocr_text_preview = ""
 
 def cleanup_temp_file(path):
     try:
@@ -45,32 +47,6 @@ def cleanup_temp_file(path):
             os.unlink(path)
     except Exception:
         pass
-
-def fast_text_to_pdf(text_content):
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
-    styles = getSampleStyleSheet()
-    custom_style = ParagraphStyle(
-        'CustomStyle',
-        parent=styles['Normal'],
-        fontSize=11,
-        leading=14,
-        alignment=TA_LEFT,
-        wordWrap='LTR'
-    )
-    story = []
-    text_content = text_content.replace('*', '&bull;')
-    text_content = text_content.replace('\u2022', '&bull;')
-    lines = text_content.split('\n')
-    for line in lines:
-        if line.strip():
-            p = Paragraph(line, custom_style)
-            story.append(p)
-            story.append(Spacer(1, 6))
-        else:
-            story.append(Spacer(1, 12))
-    doc.build(story)
-    return bytes(buffer.getvalue())
 
 class SecureProcessor:
     def __init__(self):
@@ -85,6 +61,7 @@ class SecureProcessor:
         return bytes(self.memory_buffer.getvalue())
 
     def images_to_pdf(self, image_list):
+        # Fix for rotation error on mobile devices
         img_bytes = []
         for i in image_list:
             i.seek(0)
@@ -95,9 +72,26 @@ class SecureProcessor:
         images = convert_from_bytes(pdf_bytes)
         full_text = ""
         for i, img in enumerate(images):
+            # psm 3 is "Fully automatic page segmentation, but no OSD" - good for general text
             text = pytesseract.image_to_string(img, config='--psm 3')
-            full_text += f"{text}\n\n"
+            full_text += f"--- Page {i+1} ---\n{text}\n\n"
         return full_text
+
+    def create_searchable_pdf(self, pdf_bytes):
+        # Creates a PDF that looks EXACTLY like the original image but is searchable
+        images = convert_from_bytes(pdf_bytes)
+        writer = PdfWriter()
+        
+        for img in images:
+            pdf_page_bytes = pytesseract.image_to_pdf_or_hocr(img, extension='pdf', config='--psm 3')
+            
+            # Read this page back into PyPDF to merge it
+            page_reader = PdfReader(io.BytesIO(pdf_page_bytes))
+            writer.add_page(page_reader.pages[0])
+            
+        output_buffer = io.BytesIO()
+        writer.write(output_buffer)
+        return bytes(output_buffer.getvalue())
 
     def repair_pdf(self, file_obj):
         file_obj.seek(0)
@@ -133,6 +127,7 @@ def main():
                     st.divider()
                     edit_mode = st.radio("Tool", ["Add Signature", "Add Text", "Whiteout"])
                     overlay_img = None
+                    
                     if edit_mode == "Add Signature":
                         sig_src = st.radio("Source", ["Pad", "File"])
                         if sig_src == "Pad":
@@ -150,6 +145,7 @@ def main():
                         else:
                             u = st.file_uploader("Upload PNG", type=['png'])
                             if u: overlay_img = Image.open(u).convert("RGBA")
+                            
                     elif edit_mode == "Add Text":
                         txt = st.text_input("Content", "Enter Text")
                         t_sz = st.slider("Size", 10, 150, 24)
@@ -166,8 +162,10 @@ def main():
                             overlay_img = Image.new('RGBA', (tw + 10, th + 10), (255, 255, 255, 0))
                             d = ImageDraw.Draw(overlay_img)
                             d.text((5, 5), txt, font=fnt, fill=t_clr)
+                            
                     elif edit_mode == "Whiteout":
                         overlay_img = Image.new('RGBA', (100, 50), (255,255,255,255))
+                        
                     st.divider()
                     if overlay_img:
                         x = st.slider("X Position", 0, current_img.width, 50)
@@ -175,12 +173,14 @@ def main():
                         sc = st.slider("Scale", 0.1, 4.0, 1.0)
                         nw, nh = int(overlay_img.width*sc), int(overlay_img.height*sc)
                         if nw > 0 and nh > 0: overlay_img = overlay_img.resize((nw, nh))
+                        
                 with c2:
                     st.subheader("Live Preview")
                     prev = current_img.convert("RGBA")
                     if overlay_img:
                         prev.paste(overlay_img, (x, y), overlay_img)
                     st.image(prev, use_container_width=True)
+                    
                     if st.button("Apply Changes"):
                         if overlay_img:
                             reader = PdfReader(tmp_pdf_path)
@@ -208,6 +208,7 @@ def main():
                             out = io.BytesIO(); writer.write(out)
                             st.session_state.edited_pdf_bytes = bytes(out.getvalue())
                             st.success("Changes Applied! Click Download below.")
+                            
                     if st.session_state.edited_pdf_bytes:
                         st.download_button("Download Edited PDF", st.session_state.edited_pdf_bytes, "final.pdf", "application/pdf")
             finally:
@@ -224,20 +225,29 @@ def main():
                 st.error(f"Error converting images: {e}")
 
     elif choice == "OCR Extract Text":
-        st.header("OCR Engine")
+        st.header("OCR Engine (Preserves Layout)")
         f = st.file_uploader("Upload Scanned PDF", type=['pdf'])
         if f:
             if st.button("Process OCR"):
-                txt = processor.extract_text(f.read())
-                st.session_state.ocr_buffer = txt
-            if st.session_state.ocr_buffer:
-                st.session_state.ocr_buffer = st.text_area("Review and Edit", st.session_state.ocr_buffer, height=450)
+                with st.spinner("Analyzing document structure..."):
+                    raw_bytes = f.read()
+                    # 1. Get Text for Preview
+                    txt = processor.extract_text(raw_bytes)
+                    st.session_state.ocr_text_preview = txt
+                    
+                    # 2. Get High-Fidelity PDF for Download
+                    pdf_bytes = processor.create_searchable_pdf(raw_bytes)
+                    st.session_state.ocr_result_pdf = pdf_bytes
+                    
+            if st.session_state.ocr_text_preview:
+                st.text_area("Text Content Preview (Raw Text)", st.session_state.ocr_text_preview, height=250)
+                
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.download_button("Download TXT", st.session_state.ocr_buffer, "document.txt")
+                    st.download_button("Download Raw Text", st.session_state.ocr_text_preview, "document.txt")
                 with col2:
-                    pdf_data = fast_text_to_pdf(st.session_state.ocr_buffer)
-                    st.download_button("Download PDF", pdf_data, "ocr.pdf")
+                    if st.session_state.ocr_result_pdf:
+                        st.download_button("Download Layout-Perfect PDF", st.session_state.ocr_result_pdf, "searchable_doc.pdf", help="Downloads a PDF that looks exactly like the original but with searchable text.")
 
     elif choice == "Merge PDFs":
         st.header("Merge PDFs")
