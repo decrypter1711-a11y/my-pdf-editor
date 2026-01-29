@@ -5,19 +5,16 @@ import pytesseract
 import io
 import os
 import tempfile
-import base64
 from PIL import Image, ImageDraw, ImageFont
 from pdf2image import convert_from_bytes
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.colors import white, black
+from reportlab.lib.colors import white
 from streamlit_drawable_canvas import st_canvas
 from streamlit_cropper import st_cropper
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_LEFT
 
 st.set_page_config(
@@ -32,6 +29,10 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; background-color: #007bff; color: white; }
     .privacy-msg { background-color: #28a745; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 5px; margin-bottom: 20px; }
     h1, h2 { color: #1e293b; }
+    @media (max-width: 768px) {
+        .stActionButton { width: 100%; }
+        .stImage { width: 100% !important; }
+    }
 </style>
 <meta name="description" content="Free online PDF editor. Convert images to PDF, OCR scanned documents, sign PDFs, merge, crop, and repair corrupted files.">
 <meta name="keywords" content="PDF Editor, Online PDF, OCR PDF, Sign PDF Online, Merge PDF, Repair PDF, Free PDF Tool">
@@ -88,7 +89,7 @@ class SecureProcessor:
         return bytes(self.memory_buffer.getvalue())
 
     def images_to_pdf(self, image_list):
-        img_bytes = [i.read() for i in image_list]
+        img_bytes = [img.read() for img in image_list]
         return bytes(img2pdf.convert(img_bytes))
 
     def extract_text(self, pdf_bytes):
@@ -105,20 +106,64 @@ class SecureProcessor:
             tmp_path = tmp.name
         try:
             pdf = pikepdf.open(tmp_path, allow_overwriting_input=True)
-            pdf.save(self.memory_buffer)
-            return bytes(self.memory_buffer.getvalue())
+            out_buf = io.BytesIO()
+            pdf.save(out_buf)
+            return out_buf.getvalue()
         finally:
             cleanup_temp_file(tmp_path)
 
+    def add_watermark(self, pdf_bytes, text):
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        for page in reader.pages:
+            packet = io.BytesIO()
+            can = canvas.Canvas(packet, pagesize=(float(page.mediabox.width), float(page.mediabox.height)))
+            can.saveState()
+            can.setFont("Helvetica", 60)
+            can.setFillGray(0.5, 0.5)
+            can.translate(float(page.mediabox.width)/2, float(page.mediabox.height)/2)
+            can.rotate(45)
+            can.drawCentredString(0, 0, text)
+            can.restoreState()
+            can.save()
+            packet.seek(0)
+            watermark_pdf = PdfReader(packet)
+            page.merge_page(watermark_pdf.pages[0])
+            writer.add_page(page)
+        buf = io.BytesIO()
+        writer.write(buf)
+        return buf.getvalue()
+
+    def encrypt_pdf(self, pdf_bytes, password):
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        writer.encrypt(password)
+        buf = io.BytesIO()
+        writer.write(buf)
+        return buf.getvalue()
+
 def main():
     st.sidebar.header("Features Menu")
-    menu = ["Visual Editor", "Image to PDF", "OCR Extract Text", "Merge PDFs", "Split and Crop", "Repair Broken PDF", "Convert PDF Format"]
+    menu = [
+        "Visual Editor",
+        "Image to PDF (1000+ images)",
+        "OCR Extract Text",
+        "Merge PDFs",
+        "Split and Crop",
+        "Repair Broken PDF",
+        "Add Watermark",
+        "Encrypt PDF",
+        "Convert PDF Format",
+        "Dynamic Sitemap"
+    ]
     choice = st.sidebar.radio("Select Tool", menu)
     processor = SecureProcessor()
 
     if choice == "Visual Editor":
         st.header("Visual PDF Editor and Signer")
-        target_pdf = st.file_uploader("Upload PDF File", type=['pdf'])
+        target_pdf = st.file_uploader("Upload PDF File", type=['pdf'], key="visual_up")
         if target_pdf:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                 tmp_pdf.write(target_pdf.getvalue())
@@ -135,7 +180,7 @@ def main():
                     if edit_mode == "Add Signature":
                         sig_src = st.radio("Source", ["Pad", "File"])
                         if sig_src == "Pad":
-                            canv = st_canvas(fill_color="rgba(0,0,0,0)", stroke_width=2, stroke_color="#000", background_color="#fff", height=150, width=300, drawing_mode="freedraw", key="sig")
+                            canv = st_canvas(fill_color="rgba(0,0,0,0)", stroke_width=2, stroke_color="#000", background_color="#fff", height=150, width=300, drawing_mode="freedraw", key="sig", display_toolbar=True)
                             if canv.image_data is not None:
                                 overlay_img = Image.fromarray(canv.image_data.astype('uint8'), 'RGBA')
                                 datas = overlay_img.getdata()
@@ -206,22 +251,24 @@ def main():
                             out = io.BytesIO(); writer.write(out)
                             st.session_state.edited_pdf_bytes = bytes(out.getvalue())
                             st.success("Changes Applied! Click Download below.")
-
                     if st.session_state.edited_pdf_bytes:
                         st.download_button("Download Edited PDF", st.session_state.edited_pdf_bytes, "final.pdf", "application/pdf")
             finally:
                 cleanup_temp_file(tmp_pdf_path)
 
-    elif choice == "Image to PDF":
-        st.header("Image to PDF Converter")
-        files = st.file_uploader("Upload images", accept_multiple_files=True, type=['jpg','png','jpeg'])
-        if files and st.button("Convert"):
-            res = processor.images_to_pdf(files)
-            st.download_button("Download PDF", res, "images.pdf")
+    elif choice == "Image to PDF (1000+ images)":
+        st.header("Batch Image to PDF")
+        files = st.file_uploader("Select multiple images", accept_multiple_files=True, type=['jpg','png','jpeg'], key="batch_img")
+        if files:
+            st.info(f"Selected: {len(files)} files")
+            if st.button("Generate PDF"):
+                with st.spinner("Processing large batch..."):
+                    res = processor.images_to_pdf(files)
+                    st.download_button("Download Batch PDF", res, "batch_images.pdf")
 
     elif choice == "OCR Extract Text":
         st.header("OCR Engine")
-        f = st.file_uploader("Upload Scanned PDF", type=['pdf'])
+        f = st.file_uploader("Upload Scanned PDF", type=['pdf'], key="ocr_up")
         if f:
             if st.button("Process OCR"):
                 txt = processor.extract_text(f.read())
@@ -237,14 +284,14 @@ def main():
 
     elif choice == "Merge PDFs":
         st.header("Merge PDFs")
-        files = st.file_uploader("Select PDFs", accept_multiple_files=True, type=['pdf'])
+        files = st.file_uploader("Select PDFs", accept_multiple_files=True, type=['pdf'], key="merge_up")
         if files and st.button("Merge"):
             res = processor.merge_pdfs(files)
             st.download_button("Download Merged PDF", res, "merged.pdf")
 
     elif choice == "Split and Crop":
         st.header("PDF Cropper")
-        f = st.file_uploader("Upload PDF", type=['pdf'])
+        f = st.file_uploader("Upload PDF", type=['pdf'], key="crop_up")
         if f:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as t:
                 t.write(f.read()); t_n = t.name
@@ -260,7 +307,7 @@ def main():
 
     elif choice == "Repair Broken PDF":
         st.header("Repair PDF")
-        f = st.file_uploader("Upload Damaged PDF", type=['pdf'])
+        f = st.file_uploader("Upload Damaged PDF", type=['pdf'], key="repair_up")
         if f and st.button("Repair"):
             try:
                 res = processor.repair_pdf(f)
@@ -268,9 +315,25 @@ def main():
             except Exception as e:
                 st.error(f"Error: {e}")
 
+    elif choice == "Add Watermark":
+        st.header("Apply Watermark")
+        f = st.file_uploader("Upload PDF", type=['pdf'], key="watermark_up")
+        w_text = st.text_input("Watermark Text", "DRAFT")
+        if f and st.button("Apply"):
+            res = processor.add_watermark(f.read(), w_text)
+            st.download_button("Download PDF", res, "watermarked.pdf")
+
+    elif choice == "Encrypt PDF":
+        st.header("Set PDF Password")
+        f = st.file_uploader("Upload PDF", type=['pdf'], key="encrypt_up")
+        pwd = st.text_input("Enter Password", type="password")
+        if f and pwd and st.button("Encrypt"):
+            res = processor.encrypt_pdf(f.read(), pwd)
+            st.download_button("Download PDF", res, "encrypted.pdf")
+
     elif choice == "Convert PDF Format":
         st.header("Converter")
-        f = st.file_uploader("Upload PDF", type=['pdf'])
+        f = st.file_uploader("Upload PDF", type=['pdf'], key="convert_up")
         fmt = st.selectbox("Target Format", ["JPG Page 1", "Word Text"])
         if f and st.button("Convert"):
             if "JPG" in fmt:
@@ -280,6 +343,12 @@ def main():
             else:
                 txt = processor.extract_text(f.read())
                 st.download_button("Download Doc", txt, "export.doc")
+
+    elif choice == "Dynamic Sitemap":
+        st.header("Search Engine Sitemap")
+        base_url = "https://my-pdf-editor-root.streamlit.app/"
+        sitemap_list = [f"{base_url}?tool={m.replace(' ', '_')}" for m in menu]
+        st.code("\n".join(sitemap_list), language="text")
 
     st.markdown("---")
     st.markdown("### Free Online PDF Editor Suite")
