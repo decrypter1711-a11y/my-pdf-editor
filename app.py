@@ -79,7 +79,7 @@ class CoreEngine:
         for index, node in enumerate(visual_nodes):
             segment = pytesseract.image_to_string(node, config='--psm 3')
             segment = re.sub(r'^\s*[e|c|o]\s+', '• ', segment, flags=re.MULTILINE)
-            segment = re.sub(r'^\s*[\-_]\s+', '• ', segment, flags=re.MULTILINE)
+            segment = re.sub(r'^\s*[-_]\s+', '• ', segment, flags=re.MULTILINE)
             transcription += f"{segment}\n"
         return transcription
 
@@ -129,6 +129,7 @@ def main_orchestrator():
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as session_buffer:
                 session_buffer.write(uplink.getvalue())
                 session_path = session_buffer.name
+            
             try:
                 frame_collection = convert_from_bytes(open(session_path, 'rb').read())
                 layout_a, layout_b = st.columns([1, 2])
@@ -139,6 +140,9 @@ def main_orchestrator():
                     st.divider()
                     modality = st.radio("Modification Protocol", ["Add Signature", "Add Text", "Whiteout"])
                     sub_layer = None
+                    content_string = ""
+                    chroma_value = "#000000"
+                    font_magnitude = 30
                     
                     if modality == "Add Signature":
                         input_method = st.radio("Input Vector", ["Pad", "File"])
@@ -167,7 +171,7 @@ def main_orchestrator():
                                 if boundaries: 
                                     sub_layer = sub_layer.crop(boundaries)
                         else:
-                            import_node = st.file_uploader("Alpha Channel PNG", type=['png'])
+                            import_node = st.file_uploader("Alpha Channel PNG", type=['png'], key="sig_upload")
                             if import_node: 
                                 sub_layer = Image.open(import_node).convert("RGBA")
                             
@@ -208,57 +212,60 @@ def main_orchestrator():
                     st.image(composition_base, use_container_width=True)
                     
                     if st.button("Apply and Download"):
-                        if sub_layer:
-                            origin_reader = PdfReader(session_path)
-                            output_constructor = PdfWriter()
-                            
-                            target_metadata = origin_reader.pages[target_frame_index]
-                            media_w = float(target_metadata.mediabox.width)
-                            media_h = float(target_metadata.mediabox.height)
-                            
-                            ratio_w, ratio_h = media_w/active_visual.width, media_h/active_visual.height
-                            mapped_x = coord_x * ratio_w
-                            mapped_y = (active_visual.height - coord_y - sub_layer.height) * ratio_h
-                            mapped_w = sub_layer.width * ratio_w
-                            mapped_h = sub_layer.height * ratio_h
-                            
-                            composite_io = io.BytesIO()
-                            rendering_surface = canvas.Canvas(composite_io, pagesize=(media_w, media_h))
-                            
-                            if modality == "Whiteout":
-                                rendering_surface.setFillColor(white)
-                                rendering_surface.setStrokeColor(white)
-                                rendering_surface.rect(mapped_x, mapped_y, mapped_w, mapped_h, fill=1, stroke=1)
-                            elif modality == "Add Text":
-                                rendering_surface.setFillColor(chroma_value)
-                                rendering_surface.setFont("Helvetica", font_magnitude * ratio_h)
-                                rendering_surface.drawString(mapped_x, mapped_y + (mapped_h/4), content_string)
-                            else:
+                        origin_reader = PdfReader(session_path)
+                        output_constructor = PdfWriter()
+                        
+                        target_metadata = origin_reader.pages[target_frame_index]
+                        media_w = float(target_metadata.mediabox.width)
+                        media_h = float(target_metadata.mediabox.height)
+                        
+                        ratio_w, ratio_h = media_w/active_visual.width, media_h/active_visual.height
+                        mapped_x = coord_x * ratio_w
+                        mapped_y = (active_visual.height - coord_y - final_h) * ratio_h
+                        mapped_w = final_w * ratio_w
+                        mapped_h = final_h * ratio_h
+                        
+                        composite_io = io.BytesIO()
+                        rendering_surface = canvas.Canvas(composite_io, pagesize=(media_w, media_h))
+                        
+                        if modality == "Whiteout":
+                            rendering_surface.setFillColor(white)
+                            rendering_surface.rect(mapped_x, mapped_y, mapped_w, mapped_h, fill=1)
+                        elif modality == "Add Text":
+                            rendering_surface.setFillColor(chroma_value)
+                            rendering_surface.setFont("Helvetica", font_magnitude * ratio_h * 0.8)
+                            rendering_surface.drawString(mapped_x, media_h - mapped_y - mapped_h * 0.2, content_string)
+                        else:
+                            asset_path = None
+                            try:
                                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as asset_proxy:
                                     sub_layer.save(asset_proxy, format="PNG")
                                     asset_path = asset_proxy.name
                                 rendering_surface.drawImage(asset_path, mapped_x, mapped_y, width=mapped_w, height=mapped_h, mask='auto')
-                                purge_temporary_resource(asset_path)
+                            finally:
+                                if asset_path:
+                                    purge_temporary_resource(asset_path)
                                 
-                            rendering_surface.save()
-                            composite_io.seek(0)
-                            overlay_node = PdfReader(composite_io)
-                            
-                            for idx, page_node in enumerate(origin_reader.pages):
-                                if idx == target_frame_index:
-                                    page_node.merge_page(overlay_node.pages[0])
-                                output_constructor.add_page(page_node)
-                                
-                            final_binary_stream = io.BytesIO()
-                            output_constructor.write(final_binary_stream)
-                            final_binary_stream.seek(0)
-                            
-                            st.download_button(
-                                label="Download Edited PDF", 
-                                data=bytes(final_binary_stream.getvalue()), 
-                                file_name="edited.pdf", 
-                                mime="application/pdf"
-                            )
+                        rendering_surface.save()
+                        composite_io.seek(0)
+                        overlay_node = PdfReader(composite_io)
+                        
+                        for idx, page_node in enumerate(origin_reader.pages):
+                            if idx == target_frame_index:
+                                page_node.merge_page(overlay_node.pages[0])
+                            output_constructor.add_page(page_node)
+                        
+                        final_binary_stream = io.BytesIO()
+                        output_constructor.write(final_binary_stream)
+                        final_binary_stream.seek(0)
+                        
+                        st.download_button(
+                            label="Download Edited PDF", 
+                            data=final_binary_stream.getvalue(), 
+                            file_name="edited.pdf", 
+                            mime="application/pdf"
+                        )
+                        
             finally:
                 purge_temporary_resource(session_path)
 
