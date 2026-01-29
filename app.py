@@ -89,7 +89,7 @@ class SecureProcessor:
         for i in image_list:
             i.seek(0)
             img_bytes.append(i.read())
-        return bytes(img2pdf.convert(img_bytes))
+        return bytes(img2pdf.convert(img_bytes, rotation=img2pdf.Rotation.ifvalid))
 
     def extract_text(self, pdf_bytes):
         images = convert_from_bytes(pdf_bytes)
