@@ -26,12 +26,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
+st.markdown(f"""
+<head>
+    <meta name="google-site-verification" content="googlee1f7c3d8ee1acfb5" />
+</head>
 <style>
-    .main { background-color: #f0f2f6; }
-    .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; background-color: #007bff; color: white; }
-    .privacy-msg { background-color: #28a745; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 5px; margin-bottom: 20px; }
-    h1, h2 { color: #1e293b; }
+    .main {{ background-color: #f0f2f6; }}
+    .stButton>button {{ width: 100%; border-radius: 6px; font-weight: 600; background-color: #007bff; color: white; }}
+    .privacy-msg {{ background-color: #28a745; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 5px; margin-bottom: 20px; }}
+    h1, h2 {{ color: #1e293b; }}
 </style>
 <meta name="description" content="Free online PDF editor. Convert images to PDF, OCR scanned documents, sign PDFs, merge, crop, and repair corrupted files.">
 <meta name="keywords" content="PDF Editor, Online PDF, OCR PDF, Sign PDF Online, Merge PDF, Repair PDF, Free PDF Tool">
