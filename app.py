@@ -20,6 +20,10 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_LEFT
 
+if st.context.path_content.endswith("googlee1f7c3d8ee1acfb5.html"):
+    st.write("google-site-verification: googlee1f7c3d8ee1acfb5.html")
+    st.stop()
+
 st.set_page_config(
     page_title="PDF Studio Pro | Free Online PDF Editor",
     layout="wide",
