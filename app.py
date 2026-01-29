@@ -166,6 +166,15 @@ def enhanced_ocr_extraction(pdf_bytes):
     
     return pages_data
 
+def convert_image_to_rgb(img):
+    if img.mode == 'RGBA':
+        rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+        rgb_img.paste(img, mask=img.split()[3])
+        return rgb_img
+    elif img.mode != 'RGB':
+        return img.convert('RGB')
+    return img
+
 class SecureProcessor:
     def __init__(self):
         self.memory_buffer = io.BytesIO()
@@ -178,8 +187,28 @@ class SecureProcessor:
         return bytes(self.memory_buffer.getvalue())
 
     def images_to_pdf(self, image_list):
-        img_bytes = [i.read() for i in image_list]
-        return bytes(img2pdf.convert(img_bytes))
+        img_bytes_list = []
+        
+        for img_file in image_list:
+            try:
+                img_file.seek(0)
+                img = Image.open(img_file)
+                
+                img = convert_image_to_rgb(img)
+                
+                img_buffer = io.BytesIO()
+                img.save(img_buffer, format='JPEG', quality=95)
+                img_buffer.seek(0)
+                img_bytes_list.append(img_buffer.getvalue())
+                
+            except Exception as e:
+                st.warning(f"Skipping image {img_file.name}: {str(e)}")
+                continue
+        
+        if not img_bytes_list:
+            raise ValueError("No valid images to convert")
+        
+        return bytes(img2pdf.convert(img_bytes_list))
 
     def extract_text(self, pdf_bytes):
         images = convert_from_bytes(pdf_bytes, dpi=300)
@@ -382,26 +411,41 @@ def main():
 
     elif choice == "Image to PDF":
         st.header("Images to PDF")
-        st.write("Upload multiple images and convert them to a single PDF file")
+        st.write("Upload multiple images (up to 1000) and convert them to a single PDF file")
         
-        files = st.file_uploader("Upload Images", accept_multiple_files=True, type=['jpg','png','jpeg'], key="img_uploader")
+        files = st.file_uploader("Upload Images", accept_multiple_files=True, type=['jpg','png','jpeg','bmp','gif','tiff'], key="img_uploader")
         
         if files:
-            st.success(f"Selected {len(files)} image(s)")
+            num_files = len(files)
             
-            cols = st.columns(min(len(files), 4))
-            for idx, file in enumerate(files):
-                with cols[idx % 4]:
-                    img = Image.open(file)
-                    st.image(img, caption=f"{idx+1}. {file.name}", use_container_width=True)
-            
-            st.divider()
-            
-            if st.button("Convert to PDF", use_container_width=True):
-                with st.spinner("Converting images to PDF..."):
-                    res = processor.images_to_pdf(files)
-                    st.success("Conversion complete")
-                    st.download_button("Download PDF", res, "converted.pdf", "application/pdf", use_container_width=True)
+            if num_files > 1000:
+                st.error(f"Too many files selected ({num_files}). Maximum allowed is 1000. Please select fewer images.")
+            else:
+                st.success(f"Selected {num_files} image(s)")
+                
+                cols = st.columns(min(num_files, 4))
+                for idx, file in enumerate(files[:20]):
+                    with cols[idx % 4]:
+                        try:
+                            img = Image.open(file)
+                            st.image(img, caption=f"{idx+1}. {file.name}", use_container_width=True)
+                            file.seek(0)
+                        except:
+                            st.warning(f"Cannot preview {file.name}")
+                
+                if num_files > 20:
+                    st.info(f"Showing first 20 images. {num_files - 20} more images will be included in the PDF.")
+                
+                st.divider()
+                
+                if st.button("Convert to PDF", use_container_width=True):
+                    with st.spinner(f"Converting {num_files} images to PDF..."):
+                        try:
+                            res = processor.images_to_pdf(files)
+                            st.success("Conversion complete")
+                            st.download_button("Download PDF", res, "converted.pdf", "application/pdf", use_container_width=True)
+                        except Exception as e:
+                            st.error(f"Error during conversion: {str(e)}")
 
     elif choice == "OCR Extract Text":
         st.header("Extract and Edit Text from PDF")
