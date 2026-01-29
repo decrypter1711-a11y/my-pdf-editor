@@ -37,6 +37,8 @@ st.markdown('<div class="privacy-msg">PRIVACY SECURED: RAM PROCESSING ONLY</div>
 
 if "edited_pdf_bytes" not in st.session_state:
     st.session_state.edited_pdf_bytes = None
+if "current_file_id" not in st.session_state:
+    st.session_state.current_file_id = None
 if "ocr_result_pdf" not in st.session_state:
     st.session_state.ocr_result_pdf = None
 if "ocr_text_preview" not in st.session_state:
@@ -62,6 +64,7 @@ class SecureProcessor:
         return bytes(self.memory_buffer.getvalue())
 
     def images_to_pdf(self, image_list):
+        # Fix for rotation error on mobile devices
         img_bytes = []
         for i in image_list:
             i.seek(0)
@@ -72,6 +75,7 @@ class SecureProcessor:
         images = convert_from_bytes(pdf_bytes)
         full_text = ""
         for i, img in enumerate(images):
+            # Regex to clean up bullet points often misread as 'e', 'c', or 'o' at start of lines
             text = pytesseract.image_to_string(img, config='--psm 3')
             text = re.sub(r'^\s*[e|c|o]\s+', '• ', text, flags=re.MULTILINE)
             text = re.sub(r'^\s*[\-_]\s+', '• ', text, flags=re.MULTILINE)
@@ -79,12 +83,15 @@ class SecureProcessor:
         return full_text
 
     def create_searchable_pdf(self, pdf_bytes):
+        # Creates a PDF that looks EXACTLY like the original image but is searchable (HOCR)
         images = convert_from_bytes(pdf_bytes)
         writer = PdfWriter()
+        
         for img in images:
             pdf_page_bytes = pytesseract.image_to_pdf_or_hocr(img, extension='pdf', config='--psm 3')
             page_reader = PdfReader(io.BytesIO(pdf_page_bytes))
             writer.add_page(page_reader.pages[0])
+            
         output_buffer = io.BytesIO()
         writer.write(output_buffer)
         return bytes(output_buffer.getvalue())
@@ -109,7 +116,14 @@ def main():
 
     if choice == "Visual Editor":
         st.header("Visual PDF Editor")
-        target_pdf = st.file_uploader("Upload PDF File", type=['pdf'])
+        target_pdf = st.file_uploader("Upload PDF File", type=['pdf'], key="viz_uploader")
+        
+        if target_pdf:
+            file_id = target_pdf.file_id if hasattr(target_pdf, 'file_id') else target_pdf.name
+            if st.session_state.current_file_id != file_id:
+                st.session_state.edited_pdf_bytes = None
+                st.session_state.current_file_id = file_id
+
         if target_pdf:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                 tmp_pdf.write(target_pdf.getvalue())
@@ -117,12 +131,14 @@ def main():
             try:
                 pages = convert_from_bytes(open(tmp_pdf_path, 'rb').read())
                 c1, c2 = st.columns([1, 2])
+                
                 with c1:
                     page_idx = st.number_input("Select Page", 1, len(pages), 1) - 1
                     current_img = pages[page_idx].copy()
                     st.divider()
                     edit_mode = st.radio("Tool", ["Add Signature", "Add Text", "Whiteout"])
                     overlay_img = None
+                    
                     if edit_mode == "Add Signature":
                         sig_src = st.radio("Source", ["Pad", "File"])
                         if sig_src == "Pad":
@@ -140,6 +156,7 @@ def main():
                         else:
                             u = st.file_uploader("Upload PNG", type=['png'])
                             if u: overlay_img = Image.open(u).convert("RGBA")
+                            
                     elif edit_mode == "Add Text":
                         txt = st.text_input("Content", "Enter Text")
                         t_sz = st.slider("Size", 10, 150, 24)
@@ -156,8 +173,10 @@ def main():
                             overlay_img = Image.new('RGBA', (tw + 10, th + 10), (255, 255, 255, 0))
                             d = ImageDraw.Draw(overlay_img)
                             d.text((5, 5), txt, font=fnt, fill=t_clr)
+                            
                     elif edit_mode == "Whiteout":
                         overlay_img = Image.new('RGBA', (100, 50), (255,255,255,255))
+                        
                     st.divider()
                     if overlay_img:
                         x = st.slider("X Position", 0, current_img.width, 50)
@@ -165,39 +184,65 @@ def main():
                         sc = st.slider("Scale", 0.1, 4.0, 1.0)
                         nw, nh = int(overlay_img.width*sc), int(overlay_img.height*sc)
                         if nw > 0 and nh > 0: overlay_img = overlay_img.resize((nw, nh))
+                        
                 with c2:
                     st.subheader("Live Preview")
                     prev = current_img.convert("RGBA")
                     if overlay_img:
                         prev.paste(overlay_img, (x, y), overlay_img)
                     st.image(prev, use_container_width=True)
+                    
                     if st.button("Apply Changes"):
                         if overlay_img:
+                            # Re-open original PDF
                             reader = PdfReader(tmp_pdf_path)
                             writer = PdfWriter()
+                            
+                            # Get dimensions from the target page
                             p_pg = reader.pages[page_idx]
-                            pw, ph = float(p_pg.mediabox.width), float(p_pg.mediabox.height)
+                            pw = float(p_pg.mediabox.width)
+                            ph = float(p_pg.mediabox.height)
+                            
+                            # Calculate scaling ratios
                             rw, rh = pw/current_img.width, ph/current_img.height
                             fx, fy = x*rw, (current_img.height - y - overlay_img.height)*rh
                             fw, fh = overlay_img.width*rw, overlay_img.height*rh
+                            
+                            # Create Overlay PDF
                             pack = io.BytesIO()
                             c = canvas.Canvas(pack, pagesize=(pw, ph))
+                            
                             if edit_mode == "Whiteout":
-                                c.setFillColor(white); c.setStrokeColor(white); c.rect(fx, fy, fw, fh, fill=1, stroke=1)
+                                c.setFillColor(white)
+                                c.setStrokeColor(white)
+                                c.rect(fx, fy, fw, fh, fill=1, stroke=1)
                             elif edit_mode == "Add Text":
-                                c.setFillColor(t_clr); c.setFont("Helvetica", t_sz * rh * sc); c.drawString(fx, fy + (fh/6), txt)
+                                c.setFillColor(t_clr)
+                                c.setFont("Helvetica", t_sz * rh * sc)
+                                # Adjust text position slightly for baseline
+                                c.drawString(fx, fy + (fh/4), txt)
                             else:
                                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tf:
-                                    overlay_img.save(tf, format="PNG"); t_p = tf.name
+                                    overlay_img.save(tf, format="PNG")
+                                    t_p = tf.name
                                 c.drawImage(t_p, fx, fy, width=fw, height=fh, mask='auto')
                                 cleanup_temp_file(t_p)
-                            c.save(); pack.seek(0); ov_pdf = PdfReader(pack)
+                                
+                            c.save()
+                            pack.seek(0)
+                            ov_pdf = PdfReader(pack)
+                            
+                            # Merge Overlay into Original
                             for i, pg in enumerate(reader.pages):
-                                if i == page_idx: pg.merge_page(ov_pdf.pages[0])
+                                if i == page_idx:
+                                    pg.merge_page(ov_pdf.pages[0])
                                 writer.add_page(pg)
-                            out = io.BytesIO(); writer.write(out)
+                                
+                            out = io.BytesIO()
+                            writer.write(out)
                             st.session_state.edited_pdf_bytes = bytes(out.getvalue())
                             st.success("Changes Applied! Click Download below.")
+                            
                     if st.session_state.edited_pdf_bytes:
                         st.download_button("Download Edited PDF", st.session_state.edited_pdf_bytes, "final.pdf", "application/pdf")
             finally:
@@ -214,7 +259,7 @@ def main():
                 st.error(f"Error converting images: {e}")
 
     elif choice == "OCR Extract Text":
-        st.header("OCR Engine")
+        st.header("OCR Engine (Preserves Layout)")
         f = st.file_uploader("Upload Scanned PDF", type=['pdf'])
         if f:
             if st.button("Process OCR"):
@@ -224,6 +269,7 @@ def main():
                     st.session_state.ocr_text_preview = txt
                     pdf_bytes = processor.create_searchable_pdf(raw_bytes)
                     st.session_state.ocr_result_pdf = pdf_bytes
+            
             if st.session_state.ocr_text_preview:
                 st.text_area("Text Content Preview", st.session_state.ocr_text_preview, height=250)
                 col1, col2 = st.columns(2)
