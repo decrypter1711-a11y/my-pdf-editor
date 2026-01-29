@@ -26,7 +26,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# FIXED CSS AND GOOGLE VERIFICATION
 st.markdown("""
 <head>
     <meta name="google-site-verification" content="googlee1f7c3d8ee1acfb5" />
