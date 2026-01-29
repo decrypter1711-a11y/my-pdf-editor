@@ -41,10 +41,6 @@ st.markdown("""
 
 st.markdown('<div class="privacy-msg">SECURE RAM-ONLY VOLATILE ARCHITECTURE - ZERO PERSISTENCE PROTOCOL</div>', unsafe_allow_html=True)
 
-if "edited_pdf_bytes" not in st.session_state:
-    st.session_state.edited_pdf_bytes = None
-if "active_file_hash" not in st.session_state:
-    st.session_state.active_file_hash = None
 if "ocr_result_pdf" not in st.session_state:
     st.session_state.ocr_result_pdf = None
 if "ocr_text_preview" not in st.session_state:
@@ -128,12 +124,6 @@ def main_orchestrator():
     if interaction_mode == "Visual Editor":
         st.header("Visual Manipulation Layer")
         uplink = st.file_uploader("Source PDF Transaction", type=['pdf'], key="global_viz_uplink")
-        
-        if uplink:
-            stream_identity = uplink.name + str(uplink.size)
-            if st.session_state.active_file_hash != stream_identity:
-                st.session_state.edited_pdf_bytes = None
-                st.session_state.active_file_hash = stream_identity
 
         if uplink:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as session_buffer:
@@ -217,7 +207,7 @@ def main_orchestrator():
                         composition_base.paste(sub_layer, (coord_x, coord_y), sub_layer)
                     st.image(composition_base, use_container_width=True)
                     
-                    if st.button("Execute Injection Protocol", key="inject_btn"):
+                    if st.button("Apply and Download"):
                         if sub_layer:
                             origin_reader = PdfReader(session_path)
                             output_constructor = PdfWriter()
@@ -262,18 +252,13 @@ def main_orchestrator():
                             final_binary_stream = io.BytesIO()
                             output_constructor.write(final_binary_stream)
                             final_binary_stream.seek(0)
-                            st.session_state.edited_pdf_bytes = final_binary_stream.getvalue()
-                            st.success("✅ Delta Injection Synchronized - Ready for Download")
-                            st.rerun()
                             
-                    if st.session_state.edited_pdf_bytes is not None:
-                        st.download_button(
-                            label="📥 Export Modified PDF Artifact", 
-                            data=st.session_state.edited_pdf_bytes, 
-                            file_name="modified_output.pdf", 
-                            mime="application/pdf",
-                            key="download_edited_pdf"
-                        )
+                            st.download_button(
+                                label="Download Edited PDF", 
+                                data=bytes(final_binary_stream.getvalue()), 
+                                file_name="edited.pdf", 
+                                mime="application/pdf"
+                            )
             finally:
                 purge_temporary_resource(session_path)
 
