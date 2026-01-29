@@ -19,6 +19,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_LEFT
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="PDF Studio Pro | Free Online PDF Editor",
@@ -26,10 +27,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+components.html(
+    """
+    <script>
+    var meta = document.createElement('meta');
+    meta.name = "google-site-verification";
+    meta.content = "txzXqQ11QyJtIc9Rgaw6E1Dbvz_ez9qO74Qp1CfI4K4";
+    document.getElementsByTagName('head')[0].appendChild(meta);
+    </script>
+    """,
+    height=0,
+)
+
 st.markdown("""
-<head>
-    <meta name="google-site-verification" content="txzXqQ11QyJtIc9Rgaw6E1Dbvz_ez9qO74Qp1CfI4K4" />
-</head>
 <style>
     .main { background-color: #f0f2f6; }
     .stButton>button { 
@@ -48,10 +58,7 @@ st.markdown("""
         border-radius: 5px; 
         margin-bottom: 20px; 
     }
-    h1, h2 { color: #1e293b; }
 </style>
-<meta name="description" content="Free online PDF editor. Convert images to PDF, OCR scanned documents, sign PDFs, merge, crop, and repair corrupted files.">
-<meta name="keywords" content="PDF Editor, Online PDF, OCR PDF, Sign PDF Online, Merge PDF, Repair PDF, Free PDF Tool">
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="privacy-msg">PRIVACY SECURED: Processing happens in RAM. No data is stored on our servers.</div>', unsafe_allow_html=True)
@@ -171,10 +178,8 @@ def main():
                         t_sz = st.slider("Size", 10, 150, 24)
                         t_clr = st.color_picker("Color", "#000000")
                         if txt:
-                            try:
-                                fnt = ImageFont.truetype("DejaVuSans.ttf", t_sz)
-                            except:
-                                fnt = ImageFont.load_default()
+                            try: fnt = ImageFont.truetype("DejaVuSans.ttf", t_sz)
+                            except: fnt = ImageFont.load_default()
                             dummy_img = Image.new('RGBA', (1, 1))
                             d_dummy = ImageDraw.Draw(dummy_img)
                             text_bbox = d_dummy.textbbox((0, 0), txt, font=fnt)
