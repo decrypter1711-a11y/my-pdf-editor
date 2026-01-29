@@ -23,7 +23,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# GOOGLE VERIFICATION & SEO INJECTION
 st.markdown("""
+<head>
+    <meta name="google-site-verification" content="txzXqQ11QyJtIc9Rgaw6E1Dbvz_ez9qO74Qp1CfI4K4" />
+</head>
 <style>
     .main { background-color: #f0f2f6; }
     .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; background-color: #007bff; color: white; }
@@ -151,10 +155,8 @@ def main():
                         t_sz = st.slider("Size", 10, 150, 24)
                         t_clr = st.color_picker("Color", "#000000")
                         if txt:
-                            try:
-                                fnt = ImageFont.truetype("DejaVuSans.ttf", t_sz)
-                            except:
-                                fnt = ImageFont.load_default()
+                            try: fnt = ImageFont.truetype("DejaVuSans.ttf", t_sz)
+                            except: fnt = ImageFont.load_default()
                             dummy_img = Image.new('RGBA', (1, 1))
                             d_dummy = ImageDraw.Draw(dummy_img)
                             text_bbox = d_dummy.textbbox((0, 0), txt, font=fnt)
