@@ -30,6 +30,7 @@ st.markdown(f"""
 <head>
     <meta name="google-site-verification" content="googlee1f7c3d8ee1acfb5" />
 </head>
+""", unsafe_allow_html=True)
 <style>
     .main {{ background-color: #f0f2f6; }}
     .stButton>button {{ width: 100%; border-radius: 6px; font-weight: 600; background-color: #007bff; color: white; }}
