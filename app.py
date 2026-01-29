@@ -5,30 +5,20 @@ import pytesseract
 import io
 import os
 import tempfile
-import base64
 from PIL import Image, ImageDraw, ImageFont
 from pdf2image import convert_from_bytes
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.colors import white, black
+from reportlab.lib.colors import white
 from streamlit_drawable_canvas import st_canvas
 from streamlit_cropper import st_cropper
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_LEFT
 
-
-# This simulates the presence of the HTML file for Google Search Console
-params = st.query_params
-if "verify" in params and params["verify"] == "googlee1f7c3d8ee1acfb5":
-    st.write("google-site-verification: googlee1f7c3d8ee1acfb5.html")
-    st.stop()
-
 st.set_page_config(
-    page_title="PDF Studio Pro | Free Online PDF Editor",
+    page_title="PDF Studio Pro",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -36,25 +26,11 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main { background-color: #f0f2f6; }
-    .stButton>button { 
-        width: 100%; 
-        border-radius: 6px; 
-        font-weight: 600; 
-        background-color: #007bff; 
-        color: white; 
-    }
-    .privacy-msg { 
-        background-color: #28a745; 
-        color: white; 
-        padding: 10px; 
-        text-align: center; 
-        font-weight: bold; 
-        border-radius: 5px; 
-        margin-bottom: 20px; 
-    }
+    .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; background-color: #007bff; color: white; }
+    .privacy-msg { background-color: #28a745; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 5px; margin-bottom: 20px; }
     h1, h2 { color: #1e293b; }
 </style>
-<meta name="description" content="Free online PDF editor. OCR scanned documents, sign PDFs, merge, crop, and repair corrupted files.">
+<meta name="description" content="Free online PDF editor. Convert images to PDF, OCR scanned documents, sign PDFs, merge, crop, and repair corrupted files.">
 <meta name="keywords" content="PDF Editor, Online PDF, OCR PDF, Sign PDF Online, Merge PDF, Repair PDF, Free PDF Tool">
 """, unsafe_allow_html=True)
 
@@ -175,8 +151,10 @@ def main():
                         t_sz = st.slider("Size", 10, 150, 24)
                         t_clr = st.color_picker("Color", "#000000")
                         if txt:
-                            try: fnt = ImageFont.truetype("DejaVuSans.ttf", t_sz)
-                            except: fnt = ImageFont.load_default()
+                            try:
+                                fnt = ImageFont.truetype("DejaVuSans.ttf", t_sz)
+                            except:
+                                fnt = ImageFont.load_default()
                             dummy_img = Image.new('RGBA', (1, 1))
                             d_dummy = ImageDraw.Draw(dummy_img)
                             text_bbox = d_dummy.textbbox((0, 0), txt, font=fnt)
@@ -224,7 +202,7 @@ def main():
                                 writer.add_page(pg)
                             out = io.BytesIO(); writer.write(out)
                             st.session_state.edited_pdf_bytes = bytes(out.getvalue())
-                            st.success("Changes Applied! Click Download below.")
+                            st.success("Changes Applied")
                     
                     if st.session_state.edited_pdf_bytes:
                         st.download_button("Download Edited PDF", st.session_state.edited_pdf_bytes, "final.pdf", "application/pdf")
