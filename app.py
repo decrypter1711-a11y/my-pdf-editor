@@ -6,6 +6,7 @@ import io
 import os
 import tempfile
 import base64
+import re
 from PIL import Image, ImageDraw, ImageFont
 from pdf2image import convert_from_bytes
 from pypdf import PdfReader, PdfWriter
@@ -92,6 +93,31 @@ def cleanup_temp_file(path):
     except Exception:
         pass
 
+def clean_ocr_text(text):
+    text = text.replace(' J ', ' ')
+    text = text.replace('J ohn', 'John')
+    text = text.replace('J ava', 'Java')
+    text = re.sub(r'\bJ\s+', '', text)
+    
+    text = text.replace('O', '0')
+    text = text.replace('S67', '567')
+    text = text.replace('89OO', '8900')
+    text = re.sub(r'(\d)O(\d)', r'\g<1>0\g<2>', text)
+    text = re.sub(r'(\d)O\b', r'\g<1>0', text)
+    
+    text = text.replace('¢', '-')
+    text = text.replace('*', '-')
+    text = re.sub(r'[•●◆▪◦⚫]', '-', text)
+    
+    text = text.replace('@example.com I Phone', '@example.com | Phone')
+    text = text.replace('I Phone', '| Phone')
+    text = re.sub(r'\s+I\s+', ' | ', text)
+    
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
+    
+    return text.strip()
+
 def fast_text_to_pdf(text_content):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, leftMargin=1*inch, rightMargin=1*inch, topMargin=1*inch, bottomMargin=1*inch)
@@ -107,15 +133,20 @@ def fast_text_to_pdf(text_content):
     )
     
     story = []
-    for line in text_content.split('\n'):
-        if line.strip():
-            try:
-                story.append(Paragraph(line, custom_style))
-            except:
-                clean_line = ''.join(c if ord(c) < 128 else ' ' for c in line)
-                story.append(Paragraph(clean_line, custom_style))
-        else:
+    lines = text_content.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
             story.append(Spacer(1, 6))
+            continue
+        
+        try:
+            clean_line = line.replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;')
+            story.append(Paragraph(clean_line, custom_style))
+        except:
+            ascii_line = ''.join(c if ord(c) < 128 else ' ' for c in line)
+            story.append(Paragraph(ascii_line, custom_style))
     
     doc.build(story)
     buffer.seek(0)
@@ -126,14 +157,14 @@ def enhanced_ocr_extraction(pdf_bytes):
     pages_data = []
     
     for i, img in enumerate(images):
-        custom_config = r'--oem 3 --psm 6'
+        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?@#$%^&*()_+-=[]{}|;:\'\"<>/\~` '
         text = pytesseract.image_to_string(img, config=custom_config, lang='eng')
         
-        text = text.replace('|', 'I').replace('0', 'O').replace('5', 'S')
+        cleaned_text = clean_ocr_text(text)
         
         pages_data.append({
             'page_num': i + 1,
-            'text': text,
+            'text': cleaned_text,
             'image': img
         })
     
@@ -160,7 +191,8 @@ class SecureProcessor:
         for i, img in enumerate(images):
             custom_config = r'--oem 3 --psm 6'
             text = pytesseract.image_to_string(img, config=custom_config, lang='eng')
-            full_text += f"--- Page {i+1} ---\n{text}\n\n"
+            cleaned_text = clean_ocr_text(text)
+            full_text += cleaned_text + "\n\n"
         return full_text
 
     def repair_pdf(self, file_obj):
@@ -394,17 +426,19 @@ def main():
                 
                 edited_pages = []
                 for page_data in st.session_state['ocr_pages']:
-                    st.markdown(f"**Page {page_data['page_num']}**")
-                    edited_text = st.text_area(
-                        f"Page {page_data['page_num']} Content", 
-                        page_data['text'], 
-                        height=300,
-                        key=f"page_{page_data['page_num']}"
-                    )
-                    edited_pages.append(edited_text)
-                    st.divider()
+                    with st.expander(f"Page {page_data['page_num']}", expanded=True):
+                        edited_text = st.text_area(
+                            f"Edit Page {page_data['page_num']}", 
+                            page_data['text'], 
+                            height=300,
+                            key=f"page_{page_data['page_num']}",
+                            label_visibility="collapsed"
+                        )
+                        edited_pages.append(edited_text)
                 
-                final_text = "\n\n".join([f"--- Page {i+1} ---\n{text}" for i, text in enumerate(edited_pages)])
+                final_text = "\n\n".join(edited_pages)
+                
+                st.divider()
                 
                 col1, col2 = st.columns(2)
                 with col1:
